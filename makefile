@@ -1,9 +1,9 @@
 build:
-	nasm -f elf64 -g server.asm
-	ld server.o -o server
+	nasm -Isrc/ -f elf64 -g src/server.asm
+	gcc -no-pie src/server.o -o src/server
 
 run:
-	./server
+	./src/server
 
 clean:
-	rm -rf *.o server
+	rm -rf src/*.o src/server

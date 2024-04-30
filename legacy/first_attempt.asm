@@ -1,6 +1,6 @@
 section .data
 	socket_desc dq 0	; store the socket descriptor
-	addr db 2, 0		; store the address returned by getsockname
+	addr db 2, 0		; store the address 
 	port dw 0x560F	; port 8080 in big-endian
 	ip_addr dd 0x0100007F	; ip addr 0.0.0.0
 	padding db 8 dup(0)
