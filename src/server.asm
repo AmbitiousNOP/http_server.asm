@@ -2,6 +2,13 @@
 
 SECTION .data
 ip_address: db "0.0.0.0", 0
+port: dw 8085
+
+listen_msg: db 'Listening for connections', 0Ah
+.len: equ $ - listen_msg
+
+accepted_msg: db 'Client connected', 0Ah
+.len: equ $ - accepted_msg
 
 server_addr:
 	istruc sockaddr_in
@@ -11,9 +18,20 @@ server_addr:
 	at sockaddr_in.sin_zero, dq 0
 	iend
 
+client_addr:
+	istruc sockaddr_in
+	at sockaddr_in.sin_family, dw 2
+	at sockaddr_in.sin_port, dw 0
+	at sockaddr_in.sin_addr, dd 0
+	at sockaddr_in.sin_zero, dq 0
+	iend
+client_addr_size:
+	dd 16
+
 SECTION .bss
-port: resq 1
+;port: resq 1	; TODO: delete port declaration in .data section and get from argv
 server_socket resq 1
+client_socket resq 1
 
 SECTION .text
 	global main
@@ -65,14 +83,29 @@ main:
 	cmp rax, 0			; error checking
 	jne close_server		; if not 0 close server
 	
-	;TODO: listen() for connecting clients
-	;TODO: accept() incoming connection
+	; listen for incoming clients
+	mov rax, 50			; syscall for listen
+	mov rdi, [server_socket]	; file descriptor 
+	mov rsi, 5			; the number of clinets that can queue for connections
+	syscall 
+	cmp rax, 0
+	jne close_server
+
+	xor r8, 0			; make r8 0 for loop
+	cmp r8, 1			; check for exit from loop
+	jne .server_accept_loop		; jump to server loop
+
+
 	;TODO: recv() data from the client
 	;TODO: send() resp to client
 	;TODO: close() client_fd connection
 
+	; close client fd
+	mov rax, 3
+	mov rdi, [client_addr]
+	syscall 
 
-	; close fd
+	; close server fd
 	mov rax, 3			; syscall for close()
 	mov rdi, [server_socket]	; file descriptor to close
 	syscall
@@ -82,6 +115,41 @@ main:
 	xor rdi, rdi			; return 0 for success
 	syscall	
 
+.server_accept_loop:
+	;FIX: handle SIGINTS
+
+	; https://man7.org/linux/man-pages/man2/signalfd.2.html
+	; print out listening message 
+	mov rax, 1	; write() syscall
+	mov rdi, 1
+	mov rsi, listen_msg
+	mov rdx, listen_msg.len
+	syscall 
+	cmp rax, listen_msg.len		; num of bytes written compared to length of msg.
+	; TODO: create func to jump to if rax is shorter then msg length
+
+	; accept incoming connections from clients
+	mov rax, 43			; syscall for accept
+	mov rdi, [server_socket]	; file descriptor 
+	mov rsi, client_addr		; address of client struct to be filled by accept()
+	mov rdx, client_addr_size			; size of server struct
+	syscall 
+	cmp rax, 0
+	jl close_server
+	mov [client_socket], rax	; store the clients file descriptor in client_server 
+
+	; print out accepted connection.
+	mov rax, 1
+	mov rdi, 1
+	mov rsi, accepted_msg
+	mov rdx, accepted_msg.len
+	syscall
+	cmp rax, accepted_msg.len
+	; TODO: create func to jump to if rax is shorter then msg legnth 
+
+	cmp r8, 1
+	jne .server_accept_loop
+	ret 
 
 close_server:
 	; close fd
